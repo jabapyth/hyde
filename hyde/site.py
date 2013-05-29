@@ -3,6 +3,7 @@
 Parses & holds information about the site to be generated.
 """
 import os
+import re
 import fnmatch
 import sys
 import urlparse
@@ -425,6 +426,22 @@ class Site(object):
         """
         self.content.load()
 
+    _rewrite_cache = {}
+    def check_rewrite(self, path):
+        if not hasattr(self.config, 'rewrite'):
+            return path
+        if path in self._rewrite_cache:
+            return self._rewrite_cache[path]
+        for item in self.config.rewrite:
+            res = re.sub(item.match, item.dest, path)
+            if res != path:
+                print 'rewrite {} => {}'.format(path, res)
+                self._rewrite_cache[path] = res
+                return res
+        print 'no match:', path
+        self._rewrite_cache[path] = path
+        return path
+
     def content_url(self, path, safe=None):
         """
         Returns the content url by appending the base url from the config
@@ -434,11 +451,12 @@ class Site(object):
                         .child(path) \
                         .replace(os.sep, '/').encode("utf-8")
         if safe is not None:
-            return quote(fpath, safe)
+            dest = quote(fpath, safe)
         elif self.config.encode_safe is not None:
-            return quote(fpath, self.config.encode_safe)
+            dest = quote(fpath, self.config.encode_safe)
         else:
-            return quote(fpath)
+            dest = quote(fpath)
+        return self.check_rewrite(dest)
 
     def media_url(self, path, safe=None):
         """
