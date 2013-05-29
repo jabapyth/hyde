@@ -27,6 +27,8 @@ from commando.util import getLoggerWithNullHandler
 
 logger = getLoggerWithNullHandler('hyde.engine.Jinja2')
 
+SilentUndefined = Undefined
+'''
 class SilentUndefined(Undefined):
     """
     A redefinition of undefined that eats errors.
@@ -38,6 +40,7 @@ class SilentUndefined(Undefined):
 
     def __call__(self, *args, **kwargs):
         return self
+'''
 
 @contextfunction
 def media_url(context, path, safe=None):
@@ -146,11 +149,17 @@ def markdown(env, value):
 
     return marked.convert(output)
 
-@environmentfilter
-def restructuredtext(env, value):
+@contextfilter
+def restructuredtext(ctx, value):
     """
     RestructuredText filter
     """
+    if isinstance(ctx, Environment):
+        env = ctx
+        name = None
+    else:
+        env = ctx.environment
+        name = ctx.name
     try:
         from docutils.core import publish_parts
     except ImportError:
@@ -160,11 +169,15 @@ def restructuredtext(env, value):
     highlight_source = False
     if hasattr(env.config, 'restructuredtext'):
         highlight_source = getattr(env.config.restructuredtext, 'highlight_source', False)
+        extensions = getattr(env.config.restructuredtext, 'extensions', [])
+        import imp
+        for extension in extensions:
+            imp.load_module(extension, *imp.find_module(extension))
 
     if highlight_source:
         import hyde.lib.pygments.rst_directive
 
-    parts = publish_parts(source=value, writer_name="html")
+    parts = publish_parts(source=value, writer_name="html", source_path=name)
     return parts['html_body']
 
 @environmentfilter

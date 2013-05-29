@@ -120,9 +120,13 @@ class SorterPlugin(Plugin):
             setattr(Resource, prev_att, None)
             setattr(Resource, next_att, None)
 
-            walker = getattr(self.site.content,
-                                sort_method_name,
-                                self.site.content.walk_resources)
+            if getattr(settings, 'path', False):
+                node = self.site.content.node_from_relative_path(settings.path)
+            else:
+                node = self.site.content
+
+            walker = getattr(node,
+                                sort_method_name)
             for prev, next in pairwalk(walker()):
                 setattr(prev, next_att, next)
                 setattr(next, prev_att, prev)

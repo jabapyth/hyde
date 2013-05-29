@@ -214,7 +214,7 @@ class Generator(object):
         self.finalize()
         self.generated_once = True
 
-    def generate_node_at_path(self, node_path=None, incremental=False):
+    def generate_node_at_path(self, node_path=None, incremental=False, fail_hard=False):
         """
         Generates a single node. If node_path is non-existent or empty,
         generates the entire site.
@@ -226,6 +226,8 @@ class Generator(object):
         node = None
         if node_path:
             node = self.site.content.node_from_path(node_path)
+            if not node and fail_hard:
+                raise Exception('Specified node not found for path %s' % node_path)
         self.generate_node(node, incremental)
 
     @contextmanager
@@ -262,7 +264,7 @@ class Generator(object):
 
     def generate_resource_at_path(self,
                     resource_path=None,
-                    incremental=False):
+                    incremental=False, fail_hard=False):
         """
         Generates a single resource. If resource_path is non-existent or empty,
         generats the entire website.
@@ -275,6 +277,8 @@ class Generator(object):
         resource = None
         if resource_path:
             resource = self.site.content.resource_from_path(resource_path)
+            if not resource and fail_hard:
+                raise Exception('Resource not found for path: %s' % resource_path)
         self.generate_resource(resource, incremental)
 
     def generate_resource(self, resource=None, incremental=False):
@@ -323,7 +327,8 @@ class Generator(object):
         with self.context_for_resource(resource) as context:
             target = File(self.site.config.deploy_root_path.child(
                                     resource.relative_deploy_path))
-            target.parent.make()
+            if not getattr(resource, 'meta', {}).get('dont_generate', False):
+                target.parent.make()
             if resource.simple_copy:
                 logger.debug("Simply Copying [%s]", resource)
                 resource.source_file.copy_to(target)
@@ -344,8 +349,9 @@ class Generator(object):
 
                 text = self.events.text_resource_complete(
                                         resource, text) or text
-                target.write(text)
-                copymode(resource.source_file.path, target.path)
+                if not getattr(resource, 'meta', {}).get('dont_generate', False):
+                    target.write(text)
+                    copymode(resource.source_file.path, target.path)
             else:
                 logger.debug("Copying binary file [%s]", resource)
                 self.events.begin_binary_resource(resource)
